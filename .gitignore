@@ -1,0 +1,5 @@
+firmware/ChainCounter/secrets.h
+build/
+tests/host/build/
+*.bin
+*.elf
