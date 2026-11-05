@@ -3,7 +3,7 @@
 Kettenzähler für eine Ankerwinde. Er zählt die Umdrehungen des Kettenrads, rechnet sie in die Kettenlänge um und sendet die Werte einmal pro Sekunde als NMEA0183-Satz per UDP-Broadcast an das Navigationssystem.
 
 - **Hardware:** Seeed XIAO ESP32C3 auf Interface-PCB P2410-01.401 V2.0
-- **Spezifikation:** HW/SW Spezifikation V1.3 (Firmware 1.1.0)
+- **Spezifikation:** [HW/SW Spezifikation V1.5](docs/ChainCounterSpecification_V1.5.odt) (Firmware 1.1.0, umgesetzt nach V1.3)
 - **Firmware:** `firmware/ChainCounter/` (Arduino-Sketch)
 
 ## Inhalt
