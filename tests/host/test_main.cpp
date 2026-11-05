@@ -3,6 +3,9 @@
 #include "nmea.h"
 #include "crc32.h"
 #include <assert.h>
+#include <stddef.h>
+// FW 1.0.0 hatte an Offset 16 reserved[0] = 0 -> alte Records liefern TotalRuntime 0
+static_assert(offsetof(CounterRecord, totalRuntime) == 16, "Layout-Kompatibilitaet");
 int main(){
   // CRC: bekannter Wert fuer "123456789" mit Standard-Init 0xFFFFFFFF (ohne final XOR) = ~0xCBF43926
   assert(crc32_calc("123456789",9,0xFFFFFFFFu) == (0xCBF43926u ^ 0xFFFFFFFFu));
@@ -23,8 +26,9 @@ int main(){
     RecordLog L(ee,0,0x10000,32,0x434E5452); CounterRecord c{};
     bool found=L.scan(&c);
     if(boot>0){ assert(found && c.revolutions==value); }
-    L.prepareNext(); c.revolutions=value; assert(L.append(&c)); L.prepareNext();   // Start-Record
-    value+= 7; c={}; c.revolutions=value; assert(L.append(&c,true));                // Power-fail-Record
+    if(boot>0){ assert(c.totalRuntime==(uint32_t)(boot-1)*10); }
+    L.prepareNext(); c.revolutions=value; c.totalRuntime=boot*10; assert(L.append(&c)); L.prepareNext();   // Start-Record
+    value+= 7; c={}; c.revolutions=value; c.totalRuntime=boot*10; assert(L.append(&c,true));  // Power-fail-Record
   }
   printf("3000 Zyklen ok, programs=%d writes=%d erases=%d\n",ee.programs,ee.writes,ee.erases);
   // abgebrochener Schreibvorgang beim Stromausfall

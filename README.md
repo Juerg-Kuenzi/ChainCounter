@@ -3,7 +3,7 @@
 Kettenzähler für eine Ankerwinde. Er zählt die Umdrehungen des Kettenrads, rechnet sie in die Kettenlänge um und sendet die Werte einmal pro Sekunde als NMEA0183-Satz per UDP-Broadcast an das Navigationssystem.
 
 - **Hardware:** Seeed XIAO ESP32C3 auf Interface-PCB P2410-01.401 V2.0
-- **Spezifikation:** HW/SW Spezifikation V1.0
+- **Spezifikation:** HW/SW Spezifikation V1.3 (Firmware 1.1.0)
 - **Firmware:** `firmware/ChainCounter/` (Arduino-Sketch)
 
 ## Inhalt
@@ -63,34 +63,64 @@ Die Polaritäten lassen sich in `config.h` umstellen (`DIRECTION_DOWN_LEVEL`, `I
 
 ### UDP Tx (1× pro Sekunde, Broadcast auf UDP_Port)
 ```
-$ISLWND,<Kettenlänge m %.1f>,<Richtung 0=down 1=up>,<VCC V %.1f>,<Systemstarts>,<Laufzeit s>*XX
+$ISLWND,<Chainlength>,<ChainDirection>,<VCCVoltage>,<SystemStarts>,<TotalRuntime>,<ActualRuntime>*XX
 ```
-Beispiel: `$ISLWND,12.4,0,24.1,17,3605*11`
+| Feld | Format | Bedeutung |
+|---|---|---|
+| Chainlength | %.1f | Kettenlänge in m (Umdrehungen × Umrechnungsfaktor) |
+| ChainDirection | %d | 0 = down, 1 = up |
+| VCCVoltage | %.1f | VCC_Analogue in V |
+| SystemStarts | %d | Anzahl Systemstarts |
+| TotalRuntime | %d (u32) | Laufzeit in s seit Inbetriebnahme/Factory Reset: gespeicherte Summe + Laufzeit seit Start |
+| ActualRuntime | %d (u32) | Laufzeit in s seit dem aktuellen Start |
+
+Beispiel: `$ISLWND,12.4,0,24.1,17,86400,3605*07`
 
 ### UDP Rx (Kommandos `$ISLWNS,p1[,p2]*xx`)
 
 | Kommando | Wirkung | Speicherung |
 |---|---|---|
-| `$ISLWNS,C*xx` | Kettenzähler = 0 | beim nächsten Stromausfall |
-| `$ISLWNS,C,<m>*xx` | Kettenlänge setzen (%d, Meter → Umdrehungen) | beim nächsten Stromausfall |
+| `$ISLWNS,C*xx` | Kettenzähler = 0 | beim nächsten Stromausfall bzw. bei der nächsten periodischen Speicherung |
+| `$ISLWNS,C,<m>*xx` | Kettenlänge setzen (%d, Meter → Umdrehungen) | beim nächsten Stromausfall bzw. bei der nächsten periodischen Speicherung |
 | `$ISLWNS,S,<ms>*xx` | DebounceTimer (1…1000 ms) | sofort |
 | `$ISLWNS,K,<m/U>*xx` | Umrechnungsfaktor (0.001…100) | sofort |
 | `$ISLWNS,F*xx` | Factory Reset: EEPROM löschen, Neustart, Initialwerte schreiben | – |
 
 Jeder empfangene Satz wird geloggt. Fehler werden auf der seriellen Schnittstelle protokolliert: falsche Checksumme, fehlender Parameter, falsches Format, zu viele Parameter, Wertebereich. Sätze mit anderem Adressfeld werden geloggt und ignoriert, eigene Broadcasts werden verworfen.
 
-### Serielle Konsole (115200 Baud)
-Zusätzlich zur Spezifikation gibt es eine serielle Konsole:
+### Serielle Konsole (USB-C, 115200 Baud, 8N1)
+Eingaben sind ASCII-Zeilen mit Abschluss CR, LF oder CR+LF, höchstens 159 Zeichen. Leerzeichen am Zeilenanfang und -ende werden entfernt. Die Befehle sind **case sensitive** (klein geschrieben). Beginnt eine Zeile mit `$`, wird sie als NMEA-Kommando behandelt (mit Checksumme), alle anderen Zeilen sind Konsolenbefehle ohne Checksumme. Log-Ausgaben beginnen mit einem Zeitstempel in Sekunden seit dem Start, z. B. `[    12.345]`.
 
-| Befehl | Funktion |
-|---|---|
-| `$ISLWNS,...*xx` | gleiches Kommando wie per UDP |
-| `cs $ISLWNS,K,0.42` | hängt die Checksumme an (zum Testen): `$ISLWNS,K,0.42*4F` |
-| `status` | zeigt den aktuellen Zustand |
-| `save` | schreibt den Zähler sofort ins EEPROM |
-| `ssid=<name>` / `pass=<pw>` / `port=<n>` | WLAN und Port ändern (wird gespeichert) |
+Diese Liste ist als Vorlage für die Befehlsliste in Spezifikation V1.4 gedacht:
 
-SSID und Passwort sind laut Spezifikation „konstant, aber konfigurierbar“. Weil es dafür kein NMEA-Kommando gibt, laufen sie über die Konsole und damit nicht übers Netz.
+| Befehl | Parameter | Funktion | Speicherung |
+|---|---|---|---|
+| `$ISLWNS,...*xx` | wie UDP | NMEA-Kommando C, S, K, F, gleiche Verarbeitung wie per UDP | wie UDP |
+| `help` | – | Befehlsliste anzeigen | – |
+| `status` | – | Zustand anzeigen: Zähler, Länge, Richtung, VCC, Starts, Laufzeiten, Konfiguration, WLAN, EEPROM | – |
+| `save` | – | variable Daten (Zähler, Systemstarts, TotalRuntime) sofort ins EEPROM schreiben | sofort |
+| `reboot` | – | variable Daten speichern, dann Neustart | sofort |
+| `tx` | – | zuletzt erzeugten `$ISLWND`-Satz einmal anzeigen | – |
+| `tx on` / `tx off` | – | jeden erzeugten `$ISLWND`-Satz laufend anzeigen (1× pro Sekunde) bzw. ausschalten; nach einem Neustart aus | – |
+| `cs <satz>` | NMEA-Satz ab `$` | Checksumme anhängen und anzeigen (nicht ausführen); vorhandenes `*xx` wird ersetzt | – |
+| `ssid=<name>` | 1…32 Zeichen | WLAN-SSID setzen, neu verbinden | sofort |
+| `pass=<pw>` | leer oder 8…64 Zeichen | WLAN-Passwort setzen, neu verbinden | sofort |
+| `port=<n>` | 1…65535 | UDP-Port (Rx und Tx) setzen, Port neu öffnen | sofort |
+
+Ein unbekannter Befehl erzeugt `FEHLER Serial: unbekannter Befehl '<eingabe>' (help)`.
+
+SSID und Passwort lassen sich bewusst nur über die Konsole ändern, nicht per UDP. So kann niemand im Netz die Zugangsdaten ändern.
+
+Beispiele:
+```
+tx
+$ISLWND,12.4,0,24.1,17,86400,3605*07
+save
+[    85.210] save: Zaehler 31, Starts 17, TotalRuntime 86400 s gespeichert OK (Slot 40)
+reboot
+[    90.002] reboot: Zaehler 31, Starts 17, TotalRuntime 86405 s gespeichert OK (Slot 41)
+[    90.003] reboot: Neustart ...
+```
 
 ### LED
 Dauernd an: WLAN verbunden. Blinkt mit 2 Hz: Verbindungsaufbau. Kurzer Blitz: Impuls gezählt.
@@ -103,7 +133,7 @@ DHCP, `setAutoReconnect(true)`. Fehlt die Verbindung länger als 15 s, wird `WiF
 ### Layout
 | Bereich | Adresse | Grösse | Recordgrösse | Slots |
 |---|---|---|---|---|
-| Zähler (Umdrehungen, Systemstarts) | 0x000000 | 64 KB | 32 Byte | 2048 |
+| Zähler (Umdrehungen, Systemstarts, TotalRuntime) | 0x000000 | 64 KB | 32 Byte | 2048 |
 | Konfiguration (K, Debounce, Port, SSID, Passwort) | 0x010000 | 4 KB | 128 Byte | 32 |
 
 Jeder Record ist so aufgebaut: `magic | seq | Daten | crc32`. Die CRC wird über alle Bytes ausser der CRC selbst gebildet, mit Startwert `0x4711e2c7`, der Tabelle aus der Spezifikation und ohne abschliessendes XOR. Beim Lesen wird sie immer geprüft.
@@ -111,36 +141,42 @@ Jeder Record ist so aufgebaut: `magic | seq | Daten | crc32`. Die CRC wird über
 ### Wear-Leveling
 Neue Records werden immer in den **nächsten** Slot geschrieben. Ist der Bereich voll, beginnt das Schreiben wieder vorne. Beim Start wird der ganze Bereich gelesen (64 KB, ca. 60 ms) und der gültige Record mit der höchsten Sequenznummer verwendet. Bei 2048 Slots und 500 000 Zyklen pro Zelle reicht das für weit über eine Million Power-Cycles.
 
-### Klärung aus der Spezifikation: nächsten Record vorbereiten?
-**Ja, er wird vorbereitet.** Beim Start, solange die Speisung gut ist, prüft die Firmware den nächsten Slot. Liegt er am Anfang einer neuen Page, wird diese Page bei Bedarf gelöscht (Page Erase, max. 4,5 ms). Bei einem Stromausfall braucht es dann weder Suche noch Löschen, sondern nur ein **Page Program** von 32 Byte (typisch etwa 0,1–0,2 ms). Damit bleibt viel Reserve zu den garantierten 20 ms.
+### Vorbereiteter Record
+Der nächste Record wird beim Start und nach jedem Schreiben vorbereitet. Solange die Speisung gut ist, solange die Speisung gut ist, prüft die Firmware dazu den nächsten Slot. Liegt er am Anfang einer neuen Page, wird diese Page bei Bedarf gelöscht (Page Erase, max. 4,5 ms). Bei einem Stromausfall braucht es dann weder Suche noch Löschen, sondern nur ein **Page Program** von 32 Byte (typisch etwa 0,1–0,2 ms). Damit bleibt viel Reserve zu den garantierten 20 ms.
 
 Ablauf beim Ausfall: Flanke an VCC_Sense → ISR → FreeRTOS-Task mit höchster Priorität → Record schreiben und zurücklesen → loggen. Die Ausfallerkennung wird erst scharf geschaltet, wenn VCC_Sense 200 ms lang High war. Kommt die Speisung ohne Reset zurück, wird der nächste Slot vorbereitet und die Erkennung wieder aktiviert.
 
-Bei jedem Start wird `Systemstarts` erhöht und sofort ein Record geschrieben. Ein fehlgeschlagenes Speichern beim Ausfall kostet so höchstens die Zählung seit diesem Start.
+Die variablen Daten (Umdrehungen, Systemstarts, TotalRuntime) werden geschrieben:
+- bei jedem Start (`Systemstarts` wird dabei erhöht),
+- alle `SAVE_INTERVAL_MIN` Minuten (Default 15, in `config.h`),
+- bei `reboot` und `save`,
+- bei Spannungsausfall.
+
+Bei einem Reset ohne Vorwarnung (Watchdog, Firmware-Upload) gehen höchstens die Daten seit der letzten Speicherung verloren, also maximal 15 Minuten. Pro Tag sind das etwa 100 Records. Die Lebensdauer des EEPROM reicht damit weit über die Lebensdauer des Geräts hinaus.
+
+Der Zähler-Record von Firmware 1.0.0 hatte an der Stelle von TotalRuntime ein reserviertes Feld mit dem Wert 0. Alte Records bleiben deshalb lesbar und starten mit TotalRuntime = 0.
 
 ## Tests
 
 ```
 make -C tests/host
 ```
-Getestet werden CRC32, NMEA-Checksumme und Parser, die strikte Zahlenprüfung sowie der Ringpuffer mit simuliertem M95P08: 3000 Start/Ausfall-Zyklen mit Überlauf und ein beim Stromausfall abgebrochener Schreibvorgang. Die Simulation bricht ab, falls auf nicht gelöschte Zellen programmiert würde.
+Getestet werden CRC32, NMEA-Checksumme und Parser, die strikte Zahlenprüfung sowie der Ringpuffer mit simuliertem M95P08: 3000 Start/Ausfall-Zyklen mit Überlauf, das Speichern von TotalRuntime und ein beim Stromausfall abgebrochener Schreibvorgang. Die Simulation bricht ab, falls auf nicht gelöschte Zellen programmiert würde.
 
 UDP-Kommandos lassen sich z. B. unter Linux so senden:
 ```
 echo -n '$ISLWNS,K,0.42*4F' | nc -u -b -w1 255.255.255.255 1467
 ```
 
-## Annahmen und offene Punkte
+## Annahmen und Hinweise
 
-Unklare oder widersprüchliche Stellen in Spezifikation V1.0 und wie sie umgesetzt sind:
+Stand Spezifikation V1.3. Die Punkte aus V1.0 bis V1.2 (Tx-Felder, „F“, Polarität Impulse/Direction, TotalRuntime) sind dort geklärt.
 
-1. **Tx-Format:** Im sprintf stehen 6 Platzhalter (`%.1f,%d,%.1f,%d,%d,%d`), es sind aber nur 5 Werte beschrieben. Umgesetzt sind die 5 Werte. Falls ein sechstes Feld gemeint ist, bitte angeben.
-2. **Factory Reset:** In der Tabelle steht bei p1 `"K"`. Umgesetzt ist es als `"F"`.
-3. **Impulse:** Die Angabe „Low: Reedkontakt“ ist unvollständig. Angenommen ist Low = offen, gezählt wird beim Schliessen. Achtung: U2A/U2B (74LVC2G14) **invertieren**. Die Pegel in `config.h` beziehen sich auf den GPIO-Pin.
-4. **VCC-Messung, Hardware:** Mit dem Teiler 1/11 ergeben 36 V am ADC 3,27 V. Der ESP32-C3-ADC misst bei 11 dB aber nur bis etwa 2,5 V genau, **die Anzeige sättigt also ab etwa 27 V**. Weil VCC_Sense am selben Teiler hängt, lässt sich der Teiler nicht einfach ändern. Vorschlag: ein eigener Teiler für den ADC, z. B. 82k/6k2. Für den Feinabgleich gibt es `VCC_CALIBRATION` in `config.h`.
-5. **Systemstarts:** Werden beim Start erhöht, der erste Start nach Erststart bzw. Factory Reset meldet also 1.
-6. **MISO** ist auf dem ESP ein Eingang (in der Spezifikation steht „Ausgang“).
-7. **USB-Betrieb ohne Vin:** VCC_Sense ist dann Low und die Ausfallerkennung bleibt inaktiv. Es erscheint eine Warnung im Log.
-8. **GPIO20/21** sind die UART0-Pins. Beim Reset gibt das ROM Boot-Meldungen auf GPIO21 (!WP1) aus, was ohne aktives !CS1 unkritisch ist. Empfehlung: Pull-up 10k an !CS1, damit das EEPROM beim Booten sicher deselektiert ist.
-9. **Factory Reset per UDP** ist ohne Authentisierung möglich. Jedes Gerät im WLAN kann ihn auslösen.
-10. **M95P08:** Die Befehlscodes (02h Page Write, 0Ah Page Program, DBh/20h/D8h Erase) und Zeiten stammen aus ST TN1559/AN5771. Am Gerät prüfen: Wirkung von !WP und Block-Protect-Bits im Statusregister (wird beim Start geloggt).
+1. **VCC-Messung, Hardware (CR_008):** Mit dem Teiler 1/11 ergeben 36 V am ADC 3,27 V. Der ESP32-C3-ADC misst bei 11 dB nur bis etwa 2,5 V genau, **die Anzeige sättigt also ab etwa 27 V**. Nach der Hardware-Änderung `VCC_DIVIDER_RATIO` in `config.h` anpassen. Für den Feinabgleich gibt es `VCC_CALIBRATION`.
+2. **Polaritäten** in `config.h` beziehen sich auf den GPIO-Pin. U2A/U2B (74LVC2G14) invertieren gegenüber der Klemme J2.
+3. **Systemstarts:** Werden beim Start erhöht, der erste Start nach Erststart bzw. Factory Reset meldet also 1.
+4. **USB-Betrieb ohne Vin:** VCC_Sense ist dann Low und die Ausfallerkennung bleibt inaktiv. Es erscheint eine Warnung im Log.
+5. **GPIO20/21** sind die UART0-Pins. Beim Reset gibt das ROM Boot-Meldungen auf GPIO21 (!WP1) aus, was ohne aktives !CS1 unkritisch ist. Empfehlung: Pull-up 10k an !CS1, damit das EEPROM beim Booten sicher deselektiert ist.
+6. **Factory Reset per UDP** ist ohne Authentisierung möglich. Jedes Gerät im WLAN kann ihn auslösen.
+7. **M95P08:** Die Befehlscodes (02h Page Write, 0Ah Page Program, DBh/20h/D8h Erase) und Zeiten stammen aus ST TN1559/AN5771. Am Gerät prüfen: Wirkung von !WP und Block-Protect-Bits im Statusregister (wird beim Start geloggt).
+8. **R8 (CR_009):** Nach der Änderung auf 10k die Einstellung von RV1 und die Schaltschwelle von Impulse nachprüfen.

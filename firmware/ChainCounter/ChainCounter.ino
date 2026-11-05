@@ -2,14 +2,15 @@
  * ChainCounter.ino  -  Kettenzaehler fuer Ankerwinde (Projekt P2410-01)
  *
  * Hardware : Seeed XIAO ESP32C3 auf Interface-PCB P2410-01.401 V2.0
- * Spez.    : HW/SW Spezifikation V1.0
+ * Spez.    : HW/SW Spezifikation V1.3
  *
  * Funktion:
  *   - zaehlt Umdrehungen (Impulse, entprellt) vorwaerts/rueckwaerts (Direction)
  *   - Kettenlaenge = Umdrehungen * Umrechnungsfaktor
  *   - sendet 1x/s NMEA "$ISLWND,..." per UDP-Broadcast
  *   - empfaengt NMEA "$ISLWNS,..." Kommandos per UDP (und Serial)
- *   - speichert Zaehler bei Spannungsausfall (VCC_Sense) ins EEPROM M95P08
+ *   - speichert Zaehler, Systemstarts und TotalRuntime ins EEPROM M95P08:
+ *     bei Spannungsausfall (VCC_Sense), alle SAVE_INTERVAL_MIN Minuten und bei reboot
  *
  * Arduino IDE: Board "XIAO_ESP32C3", "USB CDC On Boot: Enabled".
  * Keine zusaetzlichen Libraries noetig (nur ESP32 Arduino Core von Espressif).
@@ -45,6 +46,7 @@ static volatile uint32_t  g_systemStarts = DEFAULT_SYSTEM_STARTS;
 static volatile bool      g_dirDown      = false;
 static volatile uint32_t  g_pulseCount   = 0;       // nur fuer LED-Blitz
 static volatile uint16_t  g_debounceMs   = DEFAULT_DEBOUNCE_MS;
+static uint32_t           g_runtimeBase  = DEFAULT_TOTAL_RUNTIME;   // TotalRuntime beim Start
 
 // Stromausfall-Erkennung
 static TaskHandle_t       pfTaskHandle   = nullptr;
@@ -57,6 +59,8 @@ static bool               udpRunning       = false;
 static bool               wifiWasConnected = false;
 static uint32_t           wifiLastAttempt  = 0;
 static float              g_vcc            = 0.0f;
+static char               g_lastTx[128]    = "";      // zuletzt gesendeter $ISLWND-Satz
+static bool               g_txMonitor      = false;   // Konsole: tx on/off
 
 // ============================================================================
 // Prototypen
@@ -71,6 +75,10 @@ static void  loadDefaultConfig(ConfigRecord &c);
 static bool  configSane(const ConfigRecord &c);
 static void  setRevolutions(int32_t v);
 static int32_t getRevolutions();
+static uint32_t actualRuntime();
+static uint32_t totalRuntime();
+static bool  saveCounterLocked(const char *reason);
+static void  rebootDevice();
 static void  handlePowerMonitor();
 static void  wifiStart();
 static void  wifiRestart();
@@ -164,6 +172,18 @@ static int32_t getRevolutions()
     return v;
 }
 
+// ActualRuntime: Sekunden seit Systemstart
+static uint32_t actualRuntime()
+{
+    return (uint32_t)(esp_timer_get_time() / 1000000LL);
+}
+
+// TotalRuntime: gespeicherte Summe beim Start + Laufzeit seit Start
+static uint32_t totalRuntime()
+{
+    return g_runtimeBase + actualRuntime();
+}
+
 // ============================================================================
 // Stromausfall: ISR -> hochpriorer Task -> Record per Page Program schreiben
 // ============================================================================
@@ -207,7 +227,37 @@ static bool saveCounter(bool fast)
     memset(&r, 0, sizeof(r));
     r.revolutions  = getRevolutions();
     r.systemStarts = g_systemStarts;
+    r.totalRuntime = totalRuntime();
     return counterLog.append(&r, fast);
+}
+
+// Speichern aus normalem Kontext (loop): Mutex, Schreiben, naechsten Slot vorbereiten
+static bool saveCounterLocked(const char *reason)
+{
+    if (!eeOk) { logf("FEHLER: EEPROM nicht verfuegbar (%s)", reason); return false; }
+    xSemaphoreTake(eeMutex, portMAX_DELAY);
+    bool ok = saveCounter(false);
+    xSemaphoreGive(eeMutex);
+    xSemaphoreTake(eeMutex, portMAX_DELAY);       // Mutex zwischendurch freigeben
+    counterLog.prepareNext();
+    xSemaphoreGive(eeMutex);
+    logf("%s: Zaehler %ld, Starts %lu, TotalRuntime %lu s gespeichert %s (Slot %ld)", reason,
+         (long)getRevolutions(), (unsigned long)g_systemStarts, (unsigned long)totalRuntime(),
+         ok ? "OK" : "FEHLER", (long)counterLog.lastSlot());
+    return ok;
+}
+
+// reboot: variable Daten sichern, dann Neustart
+static void rebootDevice()
+{
+    portENTER_CRITICAL(&g_mux);
+    pfArmed = false;                              // keine Ausfall-Speicherung waehrenddessen
+    portEXIT_CRITICAL(&g_mux);
+    saveCounterLocked("reboot");
+    logf("reboot: Neustart ...");
+    Serial.flush();
+    delay(200);
+    ESP.restart();
 }
 
 // Schaltet die Ausfallerkennung scharf, sobald VCC_Sense stabil High ist.
@@ -406,20 +456,22 @@ static void udpReceive()
 
 static void udpSend()
 {
-    if (!udpRunning) return;
-
     char s[128];
-    float    chainLength = (float)getRevolutions() * cfg.kFactor;
-    int      chainDir    = g_dirDown ? 0 : 1;              // 0 = down, 1 = up
-    uint32_t runtime     = (uint32_t)(esp_timer_get_time() / 1000000LL);
+    float chainLength = (float)getRevolutions() * cfg.kFactor;
+    int   chainDir    = g_dirDown ? 0 : 1;                 // 0 = down, 1 = up
 
-    snprintf(s, sizeof(s), "$ISLWND,%.1f,%d,%.1f,%lu,%lu",
-             chainLength, chainDir, g_vcc, (unsigned long)g_systemStarts, (unsigned long)runtime);
+    snprintf(s, sizeof(s), "$ISLWND,%.1f,%d,%.1f,%lu,%lu,%lu",
+             chainLength, chainDir, g_vcc, (unsigned long)g_systemStarts,
+             (unsigned long)totalRuntime(), (unsigned long)actualRuntime());
     nmeaAppendChecksum(s, sizeof(s));
 
-    udp.beginPacket(WiFi.broadcastIP(), cfg.udpPort);
-    udp.write((const uint8_t *)s, strlen(s));
-    udp.endPacket();
+    if (udpRunning) {
+        udp.beginPacket(WiFi.broadcastIP(), cfg.udpPort);
+        udp.write((const uint8_t *)s, strlen(s));
+        udp.endPacket();
+    }
+    strlcpy(g_lastTx, s, sizeof(g_lastTx));
+    if (g_txMonitor) Serial.printf("TX%s %s", udpRunning ? "" : " (nicht gesendet, kein WLAN)", s);
 }
 
 // ============================================================================
@@ -580,21 +632,28 @@ static void handleSerialLine(char *line)
                          "  $ISLWNS,...*xx  NMEA Kommando (C, S, K, F)\n"
                          "  cs <satz>       Checksumme berechnen, z.B. cs $ISLWNS,K,0.42\n"
                          "  status          Zustand anzeigen\n"
-                         "  save            Zaehler jetzt ins EEPROM schreiben\n"
+                         "  save            variable Daten jetzt ins EEPROM schreiben\n"
+                         "  reboot          variable Daten speichern, dann Neustart\n"
+                         "  tx              zuletzt gesendeten $ISLWND-Satz anzeigen\n"
+                         "  tx on | tx off  jeden gesendeten Satz laufend anzeigen\n"
                          "  ssid=<name>     WLAN SSID setzen (gespeichert)\n"
                          "  pass=<passwort> WLAN Passwort setzen (gespeichert)\n"
                          "  port=<n>        UDP Port setzen (gespeichert)"));
     } else if (strcmp(line, "status") == 0) {
         printStatus();
     } else if (strcmp(line, "save") == 0) {
-        if (!eeOk) { logf("FEHLER: EEPROM nicht verfuegbar"); return; }
-        xSemaphoreTake(eeMutex, portMAX_DELAY);
-        bool ok = saveCounter(false);
-        xSemaphoreGive(eeMutex);
-        xSemaphoreTake(eeMutex, portMAX_DELAY);
-        counterLog.prepareNext();
-        xSemaphoreGive(eeMutex);
-        logf("Zaehler gespeichert %s", ok ? "OK" : "FEHLER");
+        saveCounterLocked("save");
+    } else if (strcmp(line, "reboot") == 0) {
+        rebootDevice();
+    } else if (strcmp(line, "tx") == 0) {
+        if (g_lastTx[0]) Serial.print(g_lastTx);
+        else logf("tx: noch kein Satz erzeugt");
+    } else if (strcmp(line, "tx on") == 0) {
+        g_txMonitor = true;
+        logf("tx: laufende Anzeige ein");
+    } else if (strcmp(line, "tx off") == 0) {
+        g_txMonitor = false;
+        logf("tx: laufende Anzeige aus");
     } else if (strncmp(line, "cs ", 3) == 0) {
         char s[140];
         strlcpy(s, trim(line + 3), sizeof(s));
@@ -629,7 +688,7 @@ static void handleSerialLine(char *line)
 static void printStatus()
 {
     int32_t rev = getRevolutions();
-    Serial.printf("--- ChainCounter %s ---\n", FW_VERSION);
+    Serial.printf("--- ChainCounter %s (Spez. V%s) ---\n", FW_VERSION, SPEC_VERSION);
     Serial.printf("Umdrehungen     : %ld\n", (long)rev);
     Serial.printf("Kettenlaenge    : %.2f m\n", rev * cfg.kFactor);
     Serial.printf("Richtung        : %s\n", g_dirDown ? "down (0)" : "up (1)");
@@ -638,7 +697,8 @@ static void printStatus()
                   digitalRead(PIN_VCC_SENSE) == VCC_SENSE_OK_LEVEL ? "OK" : "LOW",
                   pfArmed ? "aktiv" : "inaktiv");
     Serial.printf("Systemstarts    : %lu\n", (unsigned long)g_systemStarts);
-    Serial.printf("Laufzeit        : %lu s\n", (unsigned long)(esp_timer_get_time() / 1000000LL));
+    Serial.printf("ActualRuntime   : %lu s\n", (unsigned long)actualRuntime());
+    Serial.printf("TotalRuntime    : %lu s\n", (unsigned long)totalRuntime());
     Serial.printf("K-Faktor        : %.4f m/U\n", cfg.kFactor);
     Serial.printf("DebounceTimer   : %u ms\n", cfg.debounceMs);
     Serial.printf("UDP Port        : %u\n", cfg.udpPort);
@@ -667,7 +727,7 @@ void setup()
     uint32_t t0 = millis();
     while (!Serial && millis() - t0 < 1500) delay(10);   // kurz auf USB-CDC warten
 
-    logf("ChainCounter %s gestartet", FW_VERSION);
+    logf("ChainCounter %s (Spez. V%s) gestartet", FW_VERSION, SPEC_VERSION);
     eeMutex = xSemaphoreCreateMutex();
 
     // ---- EEPROM ----
@@ -698,12 +758,14 @@ void setup()
         if (counterLog.scan(&cr)) {
             g_revolutions  = cr.revolutions;
             g_systemStarts = cr.systemStarts;
-            logf("Zaehler geladen (Slot %ld, Seq %lu): Umdrehungen %ld, Systemstarts %lu",
+            g_runtimeBase  = cr.totalRuntime;
+            logf("Zaehler geladen (Slot %ld, Seq %lu): Umdrehungen %ld, Systemstarts %lu, TotalRuntime %lu s",
                  (long)counterLog.lastSlot(), (unsigned long)counterLog.lastSeq(),
-                 (long)cr.revolutions, (unsigned long)cr.systemStarts);
+                 (long)cr.revolutions, (unsigned long)cr.systemStarts, (unsigned long)cr.totalRuntime);
         } else {
             g_revolutions  = DEFAULT_REVOLUTION_COUNTER;
             g_systemStarts = DEFAULT_SYSTEM_STARTS;
+            g_runtimeBase  = DEFAULT_TOTAL_RUNTIME;
             logf("Kein gueltiger Zaehler im EEPROM -> Defaultwerte");
         }
         logf("EEPROM Scan: %lu ms", (unsigned long)(millis() - ts));
@@ -744,7 +806,8 @@ void setup()
 
 void loop()
 {
-    static uint32_t lastTx = 0;
+    static uint32_t lastTx   = 0;
+    static uint32_t lastSave = 0;
 
     handlePowerMonitor();
     wifiHandle();
@@ -757,6 +820,10 @@ void loop()
         lastTx = now;
         g_vcc = readVcc();
         udpSend();
+    }
+    if (now - lastSave >= (uint32_t)SAVE_INTERVAL_MIN * 60000UL) {
+        lastSave = now;
+        if (eeOk) saveCounterLocked("Periodische Speicherung");
     }
     delay(1);
 }

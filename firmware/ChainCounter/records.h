@@ -8,13 +8,15 @@
 #pragma once
 #include <stdint.h>
 
-// Variable Daten: werden bei jedem Start und bei Stromausfall geschrieben.
+// Variable Daten: werden bei jedem Start, periodisch, bei reboot und bei Stromausfall geschrieben.
+// (Records von FW 1.0.0 haben totalRuntime = 0 im reservierten Feld und bleiben lesbar.)
 struct CounterRecord {
     uint32_t magic;          // MAGIC_COUNTER
     uint32_t seq;            // Sequenznummer
     int32_t  revolutions;    // Umdrehungszaehler
     uint32_t systemStarts;   // Systemstarts (Power Cycles)
-    uint32_t reserved[3];    // = 0
+    uint32_t totalRuntime;   // TotalRuntime [s] seit Inbetriebnahme / Factory Reset
+    uint32_t reserved[2];    // = 0
     uint32_t crc;            // CRC32 ueber Byte 0..27
 };
 static_assert(sizeof(CounterRecord) == 32, "CounterRecord muss 32 Byte gross sein");

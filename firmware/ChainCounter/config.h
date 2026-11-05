@@ -14,7 +14,8 @@
 // ============================================================================
 // Firmware-Version
 // ============================================================================
-#define FW_VERSION                  "1.0.0"
+#define FW_VERSION                  "1.1.0"
+#define SPEC_VERSION                "1.3"
 
 // ============================================================================
 // Defaultwerte  (werden geladen, wenn das EEPROM keine gueltigen Daten hat)
@@ -23,6 +24,7 @@
 #define DEFAULT_K_FACTOR_M          0.4f            // Umrechnungsfaktor  [m/Umdrehung]
 #define DEFAULT_DEBOUNCE_MS         10              // DebounceTimer      [ms]
 #define DEFAULT_SYSTEM_STARTS       0               // Systemstarts       [integer]
+#define DEFAULT_TOTAL_RUNTIME       0               // TotalRuntime       [u32, s]
 #define DEFAULT_UDP_PORT            1467            // UDP_Port           [integer]
 
 // WLAN_SSID / WLAN_Passwort stehen in secrets.h (nicht im Git-Repo).
@@ -80,6 +82,7 @@
 // ============================================================================
 #define SERIAL_BAUD                 115200
 #define UDP_TX_INTERVAL_MS          1000    // NMEA-Satz 1x pro Sekunde
+#define SAVE_INTERVAL_MIN           15      // periodische Speicherung der variablen Daten [min]
 #define WIFI_RECONNECT_INTERVAL_MS  15000   // neuer Verbindungsversuch nach x ms
 #define VCC_SENSE_ARM_DELAY_MS      200     // VCC_Sense muss x ms High sein, bevor
                                             // die Ausfallerkennung scharf geschaltet wird
