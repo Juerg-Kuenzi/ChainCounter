@@ -588,6 +588,12 @@ static void handleCommand(char **f, int n)
         break;
     }
 
+    case 'R': {                                   // Neustart
+        if (n > 2) { logf("FEHLER R: zu viele Parameter"); return; }
+        rebootDevice();
+        break;
+    }
+
     case 'F': {                                   // Factory Reset
         if (n > 2) { logf("FEHLER F: zu viele Parameter"); return; }
         factoryReset();
@@ -629,7 +635,7 @@ static void handleSerialLine(char *line)
 
     if (strcmp(line, "help") == 0) {
         Serial.println(F("Befehle:\n"
-                         "  $ISLWNS,...*xx  NMEA Kommando (C, S, K, F)\n"
+                         "  $ISLWNS,...*xx  NMEA Kommando (C, S, K, R, F)\n"
                          "  cs <satz>       Checksumme berechnen, z.B. cs $ISLWNS,K,0.42\n"
                          "  status          Zustand anzeigen\n"
                          "  save            variable Daten jetzt ins EEPROM schreiben\n"
