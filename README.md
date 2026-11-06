@@ -3,7 +3,7 @@
 Kettenzähler für eine Ankerwinde. Er zählt die Umdrehungen des Kettenrads, rechnet sie in die Kettenlänge um und sendet die Werte einmal pro Sekunde als NMEA0183-Satz per UDP-Broadcast an das Navigationssystem.
 
 - **Hardware:** Seeed XIAO ESP32C3 auf Interface-PCB P2410-01.401 V2.0
-- **Spezifikation:** [HW/SW Spezifikation V1.5](docs/ChainCounterSpecification_V1.5.odt) (Firmware 1.1.0, umgesetzt nach V1.3)
+- **Spezifikation:** [HW/SW Spezifikation V1.6](docs/ChainCounterSpecification_V1.6.odt) (Firmware 1.2.0)
 - **Firmware:** `firmware/ChainCounter/` (Arduino-Sketch)
 
 ## Inhalt
@@ -84,6 +84,7 @@ Beispiel: `$ISLWND,12.4,0,24.1,17,86400,3605*07`
 | `$ISLWNS,C,<m>*xx` | Kettenlänge setzen (%d, Meter → Umdrehungen) | beim nächsten Stromausfall bzw. bei der nächsten periodischen Speicherung |
 | `$ISLWNS,S,<ms>*xx` | DebounceTimer (1…1000 ms) | sofort |
 | `$ISLWNS,K,<m/U>*xx` | Umrechnungsfaktor (0.001…100) | sofort |
+| `$ISLWNS,R*xx` | Neustart: variable Daten speichern, dann Neustart, wie `reboot` an der Konsole | sofort |
 | `$ISLWNS,F*xx` | Factory Reset: EEPROM löschen, Neustart, Initialwerte schreiben | – |
 
 Jeder empfangene Satz wird geloggt. Fehler werden auf der seriellen Schnittstelle protokolliert: falsche Checksumme, fehlender Parameter, falsches Format, zu viele Parameter, Wertebereich. Sätze mit anderem Adressfeld werden geloggt und ignoriert, eigene Broadcasts werden verworfen.
@@ -95,7 +96,7 @@ Diese Liste ist als Vorlage für die Befehlsliste in Spezifikation V1.4 gedacht:
 
 | Befehl | Parameter | Funktion | Speicherung |
 |---|---|---|---|
-| `$ISLWNS,...*xx` | wie UDP | NMEA-Kommando C, S, K, F, gleiche Verarbeitung wie per UDP | wie UDP |
+| `$ISLWNS,...*xx` | wie UDP | NMEA-Kommando C, S, K, R, F, gleiche Verarbeitung wie per UDP | wie UDP |
 | `help` | – | Befehlsliste anzeigen | – |
 | `status` | – | Zustand anzeigen: Zähler, Länge, Richtung, VCC, Starts, Laufzeiten, Konfiguration, WLAN, EEPROM | – |
 | `save` | – | variable Daten (Zähler, Systemstarts, TotalRuntime) sofort ins EEPROM schreiben | sofort |
@@ -170,13 +171,13 @@ echo -n '$ISLWNS,K,0.42*4F' | nc -u -b -w1 255.255.255.255 1467
 
 ## Annahmen und Hinweise
 
-Stand Spezifikation V1.3. Die Punkte aus V1.0 bis V1.2 (Tx-Felder, „F“, Polarität Impulse/Direction, TotalRuntime) sind dort geklärt.
+Stand Spezifikation V1.6. Die Punkte aus V1.0 bis V1.2 (Tx-Felder, „F“, Polarität Impulse/Direction, TotalRuntime) sind dort geklärt.
 
 1. **VCC-Messung, Hardware (CR_008):** Mit dem Teiler 1/11 ergeben 36 V am ADC 3,27 V. Der ESP32-C3-ADC misst bei 11 dB nur bis etwa 2,5 V genau, **die Anzeige sättigt also ab etwa 27 V**. Nach der Hardware-Änderung `VCC_DIVIDER_RATIO` in `config.h` anpassen. Für den Feinabgleich gibt es `VCC_CALIBRATION`.
 2. **Polaritäten** in `config.h` beziehen sich auf den GPIO-Pin. U2A/U2B (74LVC2G14) invertieren gegenüber der Klemme J2.
 3. **Systemstarts:** Werden beim Start erhöht, der erste Start nach Erststart bzw. Factory Reset meldet also 1.
 4. **USB-Betrieb ohne Vin:** VCC_Sense ist dann Low und die Ausfallerkennung bleibt inaktiv. Es erscheint eine Warnung im Log.
 5. **GPIO20/21** sind die UART0-Pins. Beim Reset gibt das ROM Boot-Meldungen auf GPIO21 (!WP1) aus, was ohne aktives !CS1 unkritisch ist. Empfehlung: Pull-up 10k an !CS1, damit das EEPROM beim Booten sicher deselektiert ist.
-6. **Factory Reset per UDP** ist ohne Authentisierung möglich. Jedes Gerät im WLAN kann ihn auslösen.
+6. **Neustart und Factory Reset per UDP** sind ohne Authentisierung möglich. Jedes Gerät im WLAN kann sie auslösen.
 7. **M95P08:** Die Befehlscodes (02h Page Write, 0Ah Page Program, DBh/20h/D8h Erase) und Zeiten stammen aus ST TN1559/AN5771. Am Gerät prüfen: Wirkung von !WP und Block-Protect-Bits im Statusregister (wird beim Start geloggt).
 8. **R8 (CR_009):** Nach der Änderung auf 10k die Einstellung von RV1 und die Schaltschwelle von Impulse nachprüfen.

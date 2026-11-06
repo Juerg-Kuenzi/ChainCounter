@@ -14,6 +14,7 @@ int main(){
   char s[64]="$ISLWNS,K,0.42"; nmeaAppendChecksum(s,sizeof s); printf("built: %s", s);
   char l1[64]; strcpy(l1,s); l1[strlen(l1)-2]=0; char*f[8]; int n; const char*e;
   assert(nmeaParse(l1,f,8,&n,&e) && n==3 && !strcmp(f[0],"ISLWNS") && !strcmp(f[2],"0.42"));
+  char lr[]="$ISLWNS,R*62"; assert(nmeaParse(lr,f,8,&n,&e) && n==2 && !strcmp(f[0],"ISLWNS") && !strcmp(f[1],"R"));
   char l2[]="$ISLWNS,C*00"; assert(!nmeaParse(l2,f,8,&n,&e)); printf("bad cs: %s\n",e);
   char l3[]="$ISLWNS,C"; assert(!nmeaParse(l3,f,8,&n,&e));
   long v; float fl; assert(parseIntStrict("12",&v)&&v==12); assert(!parseIntStrict("12a",&v)); assert(!parseIntStrict("",&v)); assert(!parseIntStrict(" 1",&v));
