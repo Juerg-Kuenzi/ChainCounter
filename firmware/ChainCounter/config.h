@@ -15,7 +15,7 @@
 // Firmware-Version
 // ============================================================================
 #define FW_VERSION                  "1.2.0"
-#define SPEC_VERSION                "1.6"
+#define SPEC_VERSION                "1.7"
 
 // ============================================================================
 // Defaultwerte  (werden geladen, wenn das EEPROM keine gueltigen Daten hat)

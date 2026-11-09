@@ -3,7 +3,7 @@
 Kettenzähler für eine Ankerwinde. Er zählt die Umdrehungen des Kettenrads, rechnet sie in die Kettenlänge um und sendet die Werte einmal pro Sekunde als NMEA0183-Satz per UDP-Broadcast an das Navigationssystem.
 
 - **Hardware:** Seeed XIAO ESP32C3 auf Interface-PCB P2410-01.401 V2.0
-- **Spezifikation:** [HW/SW Spezifikation V1.6](docs/ChainCounterSpecification_V1.6.odt) (Firmware 1.2.0)
+- **Spezifikation:** [HW/SW Spezifikation V1.7](docs/ChainCounterSpecification_V1.7.odt) (Firmware 1.2.0)
 - **Firmware:** `firmware/ChainCounter/` (Arduino-Sketch)
 
 ## Inhalt
@@ -171,7 +171,7 @@ echo -n '$ISLWNS,K,0.42*4F' | nc -u -b -w1 255.255.255.255 1458
 
 ## Annahmen und Hinweise
 
-Stand Spezifikation V1.6. Die Punkte aus V1.0 bis V1.2 (Tx-Felder, „F“, Polarität Impulse/Direction, TotalRuntime) sind dort geklärt.
+Stand Spezifikation V1.7. Die Punkte aus V1.0 bis V1.2 (Tx-Felder, „F“, Polarität Impulse/Direction, TotalRuntime) sind dort geklärt.
 
 1. **VCC-Messung, Hardware (CR_008):** Mit dem Teiler 1/11 ergeben 36 V am ADC 3,27 V. Der ESP32-C3-ADC misst bei 11 dB nur bis etwa 2,5 V genau, **die Anzeige sättigt also ab etwa 27 V**. Nach der Hardware-Änderung `VCC_DIVIDER_RATIO` in `config.h` anpassen. Für den Feinabgleich gibt es `VCC_CALIBRATION`.
 2. **Polaritäten** in `config.h` beziehen sich auf den GPIO-Pin. U2A/U2B (74LVC2G14) invertieren gegenüber der Klemme J2.
