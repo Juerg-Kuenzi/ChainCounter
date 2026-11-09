@@ -14,8 +14,8 @@
 // ============================================================================
 // Firmware-Version
 // ============================================================================
-#define FW_VERSION                  "1.2.0"
-#define SPEC_VERSION                "1.6"
+#define FW_VERSION                  "1.2.1"
+#define SPEC_VERSION                "1.7"
 
 // ============================================================================
 // Defaultwerte  (werden geladen, wenn das EEPROM keine gueltigen Daten hat)
@@ -25,7 +25,7 @@
 #define DEFAULT_DEBOUNCE_MS         10              // DebounceTimer      [ms]
 #define DEFAULT_SYSTEM_STARTS       0               // Systemstarts       [integer]
 #define DEFAULT_TOTAL_RUNTIME       0               // TotalRuntime       [u32, s]
-#define DEFAULT_UDP_PORT            1467            // UDP_Port           [integer]
+#define DEFAULT_UDP_PORT            1458            // UDP_Port           [integer]
 
 // WLAN_SSID / WLAN_Passwort stehen in secrets.h (nicht im Git-Repo).
 // Vorlage: secrets.h.example nach secrets.h kopieren und anpassen.
