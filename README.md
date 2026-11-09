@@ -166,7 +166,7 @@ Getestet werden CRC32, NMEA-Checksumme und Parser, die strikte Zahlenprüfung so
 
 UDP-Kommandos lassen sich z. B. unter Linux so senden:
 ```
-echo -n '$ISLWNS,K,0.42*4F' | nc -u -b -w1 255.255.255.255 1467
+echo -n '$ISLWNS,K,0.42*4F' | nc -u -b -w1 255.255.255.255 1458
 ```
 
 ## Annahmen und Hinweise
