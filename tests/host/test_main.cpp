@@ -11,12 +11,18 @@ int main(){
   assert(crc32_calc("123456789",9,0xFFFFFFFFu) == (0xCBF43926u ^ 0xFFFFFFFFu));
   printf("CRC ok, spec-start crc(\"123456789\")=%08X\n", crc32_calc("123456789",9));
   // NMEA
-  char s[64]="$ISLWNS,K,0.42"; nmeaAppendChecksum(s,sizeof s); printf("built: %s", s);
+  char s[64]="$PXISWNS,K,0.42"; nmeaAppendChecksum(s,sizeof s); printf("built: %s", s);
+  assert(!strncmp(s,"$PXISWNS,K,0.42*0B",18));
   char l1[64]; strcpy(l1,s); l1[strlen(l1)-2]=0; char*f[8]; int n; const char*e;
-  assert(nmeaParse(l1,f,8,&n,&e) && n==3 && !strcmp(f[0],"ISLWNS") && !strcmp(f[2],"0.42"));
-  char lr[]="$ISLWNS,R*62"; assert(nmeaParse(lr,f,8,&n,&e) && n==2 && !strcmp(f[0],"ISLWNS") && !strcmp(f[1],"R"));
-  char l2[]="$ISLWNS,C*00"; assert(!nmeaParse(l2,f,8,&n,&e)); printf("bad cs: %s\n",e);
-  char l3[]="$ISLWNS,C"; assert(!nmeaParse(l3,f,8,&n,&e));
+  assert(nmeaParse(l1,f,8,&n,&e) && n==3 && !strcmp(f[0],"PXISWNS") && !strcmp(f[2],"0.42"));
+  char lr[]="$PXISWNS,R*26"; assert(nmeaParse(lr,f,8,&n,&e) && n==2 && !strcmp(f[0],"PXISWNS") && !strcmp(f[1],"R"));
+  char l2[]="$PXISWNS,C*00"; assert(!nmeaParse(l2,f,8,&n,&e)); printf("bad cs: %s\n",e);
+  char l3[]="$PXISWNS,C"; assert(!nmeaParse(l3,f,8,&n,&e));
+  // Datensatz wie im README
+  char td[64]="$PXISWND,12.4,0,24.1,17,86400,3605"; nmeaAppendChecksum(td,sizeof td);
+  assert(!strncmp(td,"$PXISWND,12.4,0,24.1,17,86400,3605*43",37));
+  // Uebergangsphase: alte Kommandoform wird weiterhin korrekt geparst
+  char lo[]="$ISLWNS,C*73"; assert(nmeaParse(lo,f,8,&n,&e) && n==2 && !strcmp(f[0],"ISLWNS"));
   long v; float fl; assert(parseIntStrict("12",&v)&&v==12); assert(!parseIntStrict("12a",&v)); assert(!parseIntStrict("",&v)); assert(!parseIntStrict(" 1",&v));
   assert(parseFloatStrict("0.4",&fl)); assert(!parseFloatStrict("0.4x",&fl)); assert(!parseFloatStrict("nan",&fl));
   // RecordLog

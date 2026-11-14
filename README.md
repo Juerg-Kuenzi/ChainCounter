@@ -63,7 +63,7 @@ Die Polaritäten lassen sich in `config.h` umstellen (`DIRECTION_DOWN_LEVEL`, `I
 
 ### UDP Tx (1× pro Sekunde, Broadcast auf UDP_Port)
 ```
-$ISLWND,<Chainlength>,<ChainDirection>,<VCCVoltage>,<SystemStarts>,<TotalRuntime>,<ActualRuntime>*XX
+$PXISWND,<Chainlength>,<ChainDirection>,<VCCVoltage>,<SystemStarts>,<TotalRuntime>,<ActualRuntime>*XX
 ```
 | Feld | Format | Bedeutung |
 |---|---|---|
@@ -74,18 +74,22 @@ $ISLWND,<Chainlength>,<ChainDirection>,<VCCVoltage>,<SystemStarts>,<TotalRuntime
 | TotalRuntime | %d (u32) | Laufzeit in s seit Inbetriebnahme/Factory Reset: gespeicherte Summe + Laufzeit seit Start |
 | ActualRuntime | %d (u32) | Laufzeit in s seit dem aktuellen Start |
 
-Beispiel: `$ISLWND,12.4,0,24.1,17,86400,3605*07`
+Beispiel: `$PXISWND,12.4,0,24.1,17,86400,3605*43`
 
-### UDP Rx (Kommandos `$ISLWNS,p1[,p2]*xx`)
+Der Satz ist ein herstellereigener NMEA-0183-Satz: `P` + Kürzel `XIS` (X = Eigenbau, kein von der NMEA vergebenes Herstellerkürzel) + Satztyp `WND`. Bis Firmware 1.2.1 hieß er `$ISLWND`.
+
+### UDP Rx (Kommandos `$PXISWNS,p1[,p2]*xx`)
 
 | Kommando | Wirkung | Speicherung |
 |---|---|---|
-| `$ISLWNS,C*xx` | Kettenzähler = 0 | beim nächsten Stromausfall bzw. bei der nächsten periodischen Speicherung |
-| `$ISLWNS,C,<m>*xx` | Kettenlänge setzen (%d, Meter → Umdrehungen) | beim nächsten Stromausfall bzw. bei der nächsten periodischen Speicherung |
-| `$ISLWNS,S,<ms>*xx` | DebounceTimer (1…1000 ms) | sofort |
-| `$ISLWNS,K,<m/U>*xx` | Umrechnungsfaktor (0.001…100) | sofort |
-| `$ISLWNS,R*xx` | Neustart: variable Daten speichern, dann Neustart, wie `reboot` an der Konsole | sofort |
-| `$ISLWNS,F*xx` | Factory Reset: EEPROM löschen, Neustart, Initialwerte schreiben | – |
+| `$PXISWNS,C*xx` | Kettenzähler = 0 | beim nächsten Stromausfall bzw. bei der nächsten periodischen Speicherung |
+| `$PXISWNS,C,<m>*xx` | Kettenlänge setzen (%d, Meter → Umdrehungen) | beim nächsten Stromausfall bzw. bei der nächsten periodischen Speicherung |
+| `$PXISWNS,S,<ms>*xx` | DebounceTimer (1…1000 ms) | sofort |
+| `$PXISWNS,K,<m/U>*xx` | Umrechnungsfaktor (0.001…100) | sofort |
+| `$PXISWNS,R*xx` | Neustart: variable Daten speichern, dann Neustart, wie `reboot` an der Konsole | sofort |
+| `$PXISWNS,F*xx` | Factory Reset: EEPROM löschen, Neustart, Initialwerte schreiben | – |
+
+**Übergangsphase:** Kommandos in der alten Form `$ISLWNS,…` werden weiterhin angenommen, damit App und Display auch vor ihrem Update funktionieren. Wenn alle Geräte aktualisiert sind, wird das entfernt (`NMEA_CMD_ADDR_LEGACY` in `config.h`).
 
 Jeder empfangene Satz wird geloggt. Fehler werden auf der seriellen Schnittstelle protokolliert: falsche Checksumme, fehlender Parameter, falsches Format, zu viele Parameter, Wertebereich. Sätze mit anderem Adressfeld werden geloggt und ignoriert, eigene Broadcasts werden verworfen.
 
@@ -96,13 +100,13 @@ Diese Liste ist als Vorlage für die Befehlsliste in Spezifikation V1.4 gedacht:
 
 | Befehl | Parameter | Funktion | Speicherung |
 |---|---|---|---|
-| `$ISLWNS,...*xx` | wie UDP | NMEA-Kommando C, S, K, R, F, gleiche Verarbeitung wie per UDP | wie UDP |
+| `$PXISWNS,...*xx` | wie UDP | NMEA-Kommando C, S, K, R, F, gleiche Verarbeitung wie per UDP | wie UDP |
 | `help` | – | Befehlsliste anzeigen | – |
 | `status` | – | Zustand anzeigen: Zähler, Länge, Richtung, VCC, Starts, Laufzeiten, Konfiguration, WLAN, EEPROM | – |
 | `save` | – | variable Daten (Zähler, Systemstarts, TotalRuntime) sofort ins EEPROM schreiben | sofort |
 | `reboot` | – | variable Daten speichern, dann Neustart | sofort |
-| `tx` | – | zuletzt erzeugten `$ISLWND`-Satz einmal anzeigen | – |
-| `tx on` / `tx off` | – | jeden erzeugten `$ISLWND`-Satz laufend anzeigen (1× pro Sekunde) bzw. ausschalten; nach einem Neustart aus | – |
+| `tx` | – | zuletzt erzeugten `$PXISWND`-Satz einmal anzeigen | – |
+| `tx on` / `tx off` | – | jeden erzeugten `$PXISWND`-Satz laufend anzeigen (1× pro Sekunde) bzw. ausschalten; nach einem Neustart aus | – |
 | `cs <satz>` | NMEA-Satz ab `$` | Checksumme anhängen und anzeigen (nicht ausführen); vorhandenes `*xx` wird ersetzt | – |
 | `ssid=<name>` | 1…32 Zeichen | WLAN-SSID setzen, neu verbinden | sofort |
 | `pass=<pw>` | leer oder 8…64 Zeichen | WLAN-Passwort setzen, neu verbinden | sofort |
@@ -115,7 +119,7 @@ SSID und Passwort lassen sich bewusst nur über die Konsole ändern, nicht per U
 Beispiele:
 ```
 tx
-$ISLWND,12.4,0,24.1,17,86400,3605*07
+$PXISWND,12.4,0,24.1,17,86400,3605*43
 save
 [    85.210] save: Zaehler 31, Starts 17, TotalRuntime 86400 s gespeichert OK (Slot 40)
 reboot
@@ -166,7 +170,7 @@ Getestet werden CRC32, NMEA-Checksumme und Parser, die strikte Zahlenprüfung so
 
 UDP-Kommandos lassen sich z. B. unter Linux so senden:
 ```
-echo -n '$ISLWNS,K,0.42*4F' | nc -u -b -w1 255.255.255.255 1458
+echo -n '$PXISWNS,K,0.42*0B' | nc -u -b -w1 255.255.255.255 1458
 ```
 
 ## Annahmen und Hinweise

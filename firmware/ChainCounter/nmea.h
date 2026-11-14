@@ -13,7 +13,7 @@ uint8_t nmeaChecksum(const char *s, size_t len);
 bool nmeaAppendChecksum(char *buf, size_t size);
 
 // Prueft Format "$feld0,feld1,...*xx" und Checksumme und zerlegt den Satz.
-// 'line' wird dabei veraendert. fields[0] = Adressfeld (z.B. "ISLWNS").
+// 'line' wird dabei veraendert. fields[0] = Adressfeld (z.B. "PXISWNS").
 // Bei Fehler: false und *err zeigt auf eine Fehlerbeschreibung.
 bool nmeaParse(char *line, char **fields, int maxFields, int *count, const char **err);
 

@@ -7,8 +7,9 @@
  * Funktion:
  *   - zaehlt Umdrehungen (Impulse, entprellt) vorwaerts/rueckwaerts (Direction)
  *   - Kettenlaenge = Umdrehungen * Umrechnungsfaktor
- *   - sendet 1x/s NMEA "$ISLWND,..." per UDP-Broadcast
- *   - empfaengt NMEA "$ISLWNS,..." Kommandos per UDP (und Serial)
+ *   - sendet 1x/s NMEA "$PXISWND,..." per UDP-Broadcast
+ *   - empfaengt NMEA "$PXISWNS,..." Kommandos per UDP (und Serial),
+ *     uebergangsweise auch "$ISLWNS,..."
  *   - speichert Zaehler, Systemstarts und TotalRuntime ins EEPROM M95P08:
  *     bei Spannungsausfall (VCC_Sense), alle SAVE_INTERVAL_MIN Minuten und bei reboot
  *
@@ -59,7 +60,7 @@ static bool               udpRunning       = false;
 static bool               wifiWasConnected = false;
 static uint32_t           wifiLastAttempt  = 0;
 static float              g_vcc            = 0.0f;
-static char               g_lastTx[128]    = "";      // zuletzt gesendeter $ISLWND-Satz
+static char               g_lastTx[128]    = "";      // zuletzt gesendeter $PXISWND-Satz
 static bool               g_txMonitor      = false;   // Konsole: tx on/off
 
 // ============================================================================
@@ -460,7 +461,7 @@ static void udpSend()
     float chainLength = (float)getRevolutions() * cfg.kFactor;
     int   chainDir    = g_dirDown ? 0 : 1;                 // 0 = down, 1 = up
 
-    snprintf(s, sizeof(s), "$ISLWND,%.1f,%d,%.1f,%lu,%lu,%lu",
+    snprintf(s, sizeof(s), "$" NMEA_TX_ADDR ",%.1f,%d,%.1f,%lu,%lu,%lu",
              chainLength, chainDir, g_vcc, (unsigned long)g_systemStarts,
              (unsigned long)totalRuntime(), (unsigned long)actualRuntime());
     nmeaAppendChecksum(s, sizeof(s));
@@ -501,7 +502,7 @@ static void handleLed()
 }
 
 // ============================================================================
-// NMEA Kommandos  $ISLWNS,p1[,p2]*xx
+// NMEA Kommandos  $PXISWNS,p1[,p2]*xx  (uebergangsweise auch $ISLWNS)
 // ============================================================================
 static char *trim(char *s)
 {
@@ -524,7 +525,7 @@ static void handleNmeaLine(char *line, const char *source)
         logf("FEHLER NMEA: %s", err);
         return;
     }
-    if (strcmp(f[0], "ISLWNS") != 0) {
+    if (strcmp(f[0], NMEA_CMD_ADDR) != 0 && strcmp(f[0], NMEA_CMD_ADDR_LEGACY) != 0) {
         logf("  ignoriert (Satz '%s')", f[0]);
         return;
     }
@@ -533,9 +534,9 @@ static void handleNmeaLine(char *line, const char *source)
 
 static void handleCommand(char **f, int n)
 {
-    // f[0] = "ISLWNS", f[1] = p1, f[2] = p2 ...
-    if (n < 2 || f[1][0] == '\0') { logf("FEHLER ISLWNS: Parameter p1 fehlt"); return; }
-    if (strlen(f[1]) != 1)         { logf("FEHLER ISLWNS: ungueltiger Parameter p1 '%s'", f[1]); return; }
+    // f[0] = Adressfeld, f[1] = p1, f[2] = p2 ...
+    if (n < 2 || f[1][0] == '\0') { logf("FEHLER %s: Parameter p1 fehlt", f[0]); return; }
+    if (strlen(f[1]) != 1)         { logf("FEHLER %s: ungueltiger Parameter p1 '%s'", f[0], f[1]); return; }
 
     const char cmd = f[1][0];
     switch (cmd) {
@@ -601,14 +602,14 @@ static void handleCommand(char **f, int n)
     }
 
     default:
-        logf("FEHLER ISLWNS: unbekanntes Kommando '%c'", cmd);
+        logf("FEHLER %s: unbekanntes Kommando '%c'", f[0], cmd);
         break;
     }
 }
 
 // ============================================================================
 // Serielle Konsole (115200 Baud)
-//   $ISLWNS,...*xx    gleiches Kommando wie per UDP
+//   $PXISWNS,...*xx   gleiches Kommando wie per UDP
 //   Weitere Befehle: help, status, save, cs <satz>, ssid=..., pass=..., port=...
 // ============================================================================
 static void serialReceive()
@@ -635,12 +636,12 @@ static void handleSerialLine(char *line)
 
     if (strcmp(line, "help") == 0) {
         Serial.println(F("Befehle:\n"
-                         "  $ISLWNS,...*xx  NMEA Kommando (C, S, K, R, F)\n"
-                         "  cs <satz>       Checksumme berechnen, z.B. cs $ISLWNS,K,0.42\n"
+                         "  $PXISWNS,...*xx NMEA Kommando (C, S, K, R, F)\n"
+                         "  cs <satz>       Checksumme berechnen, z.B. cs $PXISWNS,K,0.42\n"
                          "  status          Zustand anzeigen\n"
                          "  save            variable Daten jetzt ins EEPROM schreiben\n"
                          "  reboot          variable Daten speichern, dann Neustart\n"
-                         "  tx              zuletzt gesendeten $ISLWND-Satz anzeigen\n"
+                         "  tx              zuletzt gesendeten $PXISWND-Satz anzeigen\n"
                          "  tx on | tx off  jeden gesendeten Satz laufend anzeigen\n"
                          "  ssid=<name>     WLAN SSID setzen (gespeichert)\n"
                          "  pass=<passwort> WLAN Passwort setzen (gespeichert)\n"
