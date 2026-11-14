@@ -15,7 +15,7 @@
 // Firmware-Version
 // ============================================================================
 #define FW_VERSION                  "1.3.0"
-#define SPEC_VERSION                "1.7"
+#define SPEC_VERSION                "1.8"
 
 // ============================================================================
 // NMEA-Adressfelder (herstellereigene Saetze: 'P' + Kuerzel 'XIS' + Typ)
