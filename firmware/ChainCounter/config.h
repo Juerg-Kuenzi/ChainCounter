@@ -14,8 +14,17 @@
 // ============================================================================
 // Firmware-Version
 // ============================================================================
-#define FW_VERSION                  "1.2.1"
-#define SPEC_VERSION                "1.7"
+#define FW_VERSION                  "1.3.0"
+#define SPEC_VERSION                "1.8"
+
+// ============================================================================
+// NMEA-Adressfelder (herstellereigene Saetze: 'P' + Kuerzel 'XIS' + Typ)
+// ============================================================================
+#define NMEA_TX_ADDR                "PXISWND"   // Daten, 1x pro Sekunde
+#define NMEA_CMD_ADDR               "PXISWNS"   // Kommandos
+// Uebergangsphase: alte Kommandoform weiterhin annehmen, damit App und
+// Display auch vor ihrem Update funktionieren. Spaeter entfernen.
+#define NMEA_CMD_ADDR_LEGACY        "ISLWNS"
 
 // ============================================================================
 // Defaultwerte  (werden geladen, wenn das EEPROM keine gueltigen Daten hat)
