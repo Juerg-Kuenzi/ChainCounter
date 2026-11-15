@@ -8,8 +8,7 @@
  *   - zaehlt Umdrehungen (Impulse, entprellt) vorwaerts/rueckwaerts (Direction)
  *   - Kettenlaenge = Umdrehungen * Umrechnungsfaktor
  *   - sendet 1x/s NMEA "$PXISWND,..." per UDP-Broadcast
- *   - empfaengt NMEA "$PXISWNS,..." Kommandos per UDP (und Serial),
- *     uebergangsweise auch "$ISLWNS,..."
+ *   - empfaengt NMEA "$PXISWNS,..." Kommandos per UDP (und Serial)
  *   - speichert Zaehler, Systemstarts und TotalRuntime ins EEPROM M95P08:
  *     bei Spannungsausfall (VCC_Sense), alle SAVE_INTERVAL_MIN Minuten und bei reboot
  *
@@ -502,7 +501,7 @@ static void handleLed()
 }
 
 // ============================================================================
-// NMEA Kommandos  $PXISWNS,p1[,p2]*xx  (uebergangsweise auch $ISLWNS)
+// NMEA Kommandos  $PXISWNS,p1[,p2]*xx
 // ============================================================================
 static char *trim(char *s)
 {
@@ -525,7 +524,7 @@ static void handleNmeaLine(char *line, const char *source)
         logf("FEHLER NMEA: %s", err);
         return;
     }
-    if (strcmp(f[0], NMEA_CMD_ADDR) != 0 && strcmp(f[0], NMEA_CMD_ADDR_LEGACY) != 0) {
+    if (strcmp(f[0], NMEA_CMD_ADDR) != 0) {
         logf("  ignoriert (Satz '%s')", f[0]);
         return;
     }

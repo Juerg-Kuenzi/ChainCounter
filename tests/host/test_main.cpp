@@ -21,8 +21,6 @@ int main(){
   // Datensatz wie im README
   char td[64]="$PXISWND,12.4,0,24.1,17,86400,3605"; nmeaAppendChecksum(td,sizeof td);
   assert(!strncmp(td,"$PXISWND,12.4,0,24.1,17,86400,3605*43",37));
-  // Uebergangsphase: alte Kommandoform wird weiterhin korrekt geparst
-  char lo[]="$ISLWNS,C*73"; assert(nmeaParse(lo,f,8,&n,&e) && n==2 && !strcmp(f[0],"ISLWNS"));
   long v; float fl; assert(parseIntStrict("12",&v)&&v==12); assert(!parseIntStrict("12a",&v)); assert(!parseIntStrict("",&v)); assert(!parseIntStrict(" 1",&v));
   assert(parseFloatStrict("0.4",&fl)); assert(!parseFloatStrict("0.4x",&fl)); assert(!parseFloatStrict("nan",&fl));
   // RecordLog
