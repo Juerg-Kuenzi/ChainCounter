@@ -3,7 +3,7 @@
 Kettenzähler für eine Ankerwinde. Er zählt die Umdrehungen des Kettenrads, rechnet sie in die Kettenlänge um und sendet die Werte einmal pro Sekunde als NMEA0183-Satz per UDP-Broadcast an das Navigationssystem.
 
 - **Hardware:** Seeed XIAO ESP32C3 auf Interface-PCB P2410-01.401 V2.0
-- **Spezifikation:** [HW/SW Spezifikation V1.8](docs/ChainCounterSpecification_V1.8.odt) (Firmware 1.3.0)
+- **Spezifikation:** [HW/SW Spezifikation V1.9](docs/ChainCounterSpecification_V1.9.odt) (Firmware 1.4.0)
 - **Firmware:** `firmware/ChainCounter/` (Arduino-Sketch)
 
 ## Inhalt
@@ -76,7 +76,7 @@ $PXISWND,<Chainlength>,<ChainDirection>,<VCCVoltage>,<SystemStarts>,<TotalRuntim
 
 Beispiel: `$PXISWND,12.4,0,24.1,17,86400,3605*43`
 
-Der Satz ist ein herstellereigener NMEA-0183-Satz: `P` + Kürzel `XIS` (X = Eigenbau, kein von der NMEA vergebenes Herstellerkürzel) + Satztyp `WND`. Bis Firmware 1.2.1 hieß er `$ISLWND`.
+Der Satz ist ein herstellereigener NMEA-0183-Satz: `P` + Kürzel `XIS` (X = Eigenbau, kein von der NMEA vergebenes Herstellerkürzel) + Satztyp `WND`. Bis Firmware 1.2.1 hieß er `$ISLWND`, die Kommandos `$ISLWNS`. Firmware 1.3.0 nahm übergangsweise beide Kommandoformen an, ab 1.4.0 gilt nur noch `$PXISWNS`.
 
 ### UDP Rx (Kommandos `$PXISWNS,p1[,p2]*xx`)
 
@@ -88,8 +88,6 @@ Der Satz ist ein herstellereigener NMEA-0183-Satz: `P` + Kürzel `XIS` (X = Eige
 | `$PXISWNS,K,<m/U>*xx` | Umrechnungsfaktor (0.001…100) | sofort |
 | `$PXISWNS,R*xx` | Neustart: variable Daten speichern, dann Neustart, wie `reboot` an der Konsole | sofort |
 | `$PXISWNS,F*xx` | Factory Reset: EEPROM löschen, Neustart, Initialwerte schreiben | – |
-
-**Übergangsphase:** Kommandos in der alten Form `$ISLWNS,…` werden weiterhin angenommen, damit App und Display auch vor ihrem Update funktionieren. Wenn alle Geräte aktualisiert sind, wird das entfernt (`NMEA_CMD_ADDR_LEGACY` in `config.h`).
 
 Jeder empfangene Satz wird geloggt. Fehler werden auf der seriellen Schnittstelle protokolliert: falsche Checksumme, fehlender Parameter, falsches Format, zu viele Parameter, Wertebereich. Sätze mit anderem Adressfeld werden geloggt und ignoriert, eigene Broadcasts werden verworfen.
 
@@ -175,7 +173,7 @@ echo -n '$PXISWNS,K,0.42*0B' | nc -u -b -w1 255.255.255.255 1458
 
 ## Annahmen und Hinweise
 
-Stand Spezifikation V1.8. Die Punkte aus V1.0 bis V1.2 (Tx-Felder, „F“, Polarität Impulse/Direction, TotalRuntime) sind dort geklärt.
+Stand Spezifikation V1.9. Die Punkte aus V1.0 bis V1.2 (Tx-Felder, „F“, Polarität Impulse/Direction, TotalRuntime) sind dort geklärt.
 
 1. **VCC-Messung, Hardware (CR_008):** Mit dem Teiler 1/11 ergeben 36 V am ADC 3,27 V. Der ESP32-C3-ADC misst bei 11 dB nur bis etwa 2,5 V genau, **die Anzeige sättigt also ab etwa 27 V**. Nach der Hardware-Änderung `VCC_DIVIDER_RATIO` in `config.h` anpassen. Für den Feinabgleich gibt es `VCC_CALIBRATION`.
 2. **Polaritäten** in `config.h` beziehen sich auf den GPIO-Pin. U2A/U2B (74LVC2G14) invertieren gegenüber der Klemme J2.
