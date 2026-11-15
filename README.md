@@ -21,6 +21,34 @@ firmware/ChainCounter/
 tests/host/            PC-Tests (g++) mit simuliertem EEPROM
 ```
 
+## Firmware aufspielen ohne Arduino IDE
+
+GitHub baut die Firmware bei jedem Push. Bei jedem veröffentlichten Release hängt GitHub die fertigen Dateien automatisch an das Release an:
+
+| Datei | Inhalt | Adresse |
+|---|---|---|
+| `ChainCounter-<Version>-komplett-0x0.bin` | Bootloader, Partitionstabelle und Programm | `0x0` |
+| `ChainCounter-<Version>-programm-0x10000.bin` | nur das Programm | `0x10000` |
+
+Zum Aufspielen reicht die **komplette Datei**. Gebraucht wird nur **Chrome oder Edge** am PC, sonst nichts:
+
+1. Die Datei `…-komplett-0x0.bin` beim gewünschten [Release](https://github.com/Juerg-Kuenzi/ChainCounter/releases) herunterladen.
+2. Den XIAO per USB-C anschließen und <https://espressif.github.io/esptool-js/> öffnen.
+3. Unter *Program* die Baudrate (z. B. 921600) belassen und **Connect** wählen, dann den USB-Port des XIAO auswählen.
+4. Als *Flash Address* `0x0` eintragen, die Datei wählen und **Program** klicken. Nicht *Erase Flash* verwenden. Das ist unnötig.
+5. Danach **Disconnect** und den XIAO kurz vom USB trennen oder die Taste **R** (Reset) drücken.
+
+Findet der Browser den XIAO nicht oder bricht der Verbindungsaufbau ab: Die Taste **B** (Boot) gedrückt halten, USB-C einstecken, Taste loslassen und erneut *Connect* wählen.
+
+**Zugangsdaten und Einstellungen bleiben erhalten.** SSID, Passwort, K-Faktor, Port und Zählerstand liegen im externen EEPROM und nicht im Flash des XIAO. Die Dateien von GitHub enthalten nur Platzhalter für die Zugangsdaten. Diese werden nur bei einem Erststart oder nach einem Factory Reset verwendet. Dann setzt man SSID und Passwort über die Konsole, zum Beispiel im Bereich *Console* derselben Webseite (115200 Baud):
+
+```
+ssid=MeinBordnetz
+pass=MeinPasswort
+```
+
+Je nach Programm erscheinen die getippten Zeichen nicht auf dem Bildschirm, Enter schickt die Zeile trotzdem ab. Mit `status` lässt sich das Ergebnis prüfen.
+
 ## Entwicklungsumgebung (Arduino IDE)
 
 1. **Arduino IDE 2.x** installieren (Windows oder Linux).
@@ -30,6 +58,8 @@ tests/host/            PC-Tests (g++) mit simuliertem EEPROM
 4. Board **„XIAO_ESP32C3“** wählen. *Tools → USB CDC On Boot* muss auf **Enabled** stehen (das ist der Default), sonst erscheint die Konsole nicht am USB-C-Anschluss.
 5. `firmware/ChainCounter/secrets.h.example` nach `secrets.h` kopieren und SSID/Passwort eintragen. Die Datei steht in `.gitignore` und landet nicht im Repo.
 6. `firmware/ChainCounter/ChainCounter.ino` öffnen, hochladen und den seriellen Monitor mit **115200 Baud** öffnen.
+
+Die Arduino IDE ist nur zum Weiterentwickeln nötig. Für ein Update genügen die fertigen Dateien von GitHub (siehe oben).
 
 **Zusätzliche Libraries: keine.** Gebraucht werden nur `WiFi`, `WiFiUdp` und `SPI`, die im ESP32-Core enthalten sind.
 
