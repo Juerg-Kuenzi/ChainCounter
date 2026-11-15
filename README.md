@@ -36,7 +36,7 @@ Zum Aufspielen reicht die **komplette Datei**. Gebraucht wird nur **Chrome oder 
 2. Den XIAO per USB-C anschließen und <https://espressif.github.io/esptool-js/> öffnen.
 3. Unter *Program* die Baudrate (z. B. 921600) belassen und **Connect** wählen, dann den USB-Port des XIAO auswählen.
 4. Als *Flash Address* `0x0` eintragen, die Datei wählen und **Program** klicken. Nicht *Erase Flash* verwenden. Das ist unnötig.
-5. Danach **Disconnect** und den XIAO kurz vom USB trennen oder die Taste **R** (Reset) drücken.
+5. Danach **Disconnect** wählen und den XIAO neu starten: Taste **R** (Reset) drücken oder die Speisung aus- und wieder einschalten. Den automatischen Neustart der Webseite führt der XIAO über seinen USB-Anschluss nicht zuverlässig aus. Nur das USB-Kabel abzuziehen reicht nicht, solange der XIAO über die Platine gespeist wird.
 
 Findet der Browser den XIAO nicht oder bricht der Verbindungsaufbau ab: Die Taste **B** (Boot) gedrückt halten, USB-C einstecken, Taste loslassen und erneut *Connect* wählen.
 
